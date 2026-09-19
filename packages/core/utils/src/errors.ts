@@ -153,6 +153,17 @@ class NotImplementedError<
   }
 }
 
+class RequestAbortedError<
+  TMessage extends string = string,
+  TDetails = unknown,
+> extends ApplicationError<'RequestAbortedError', TMessage, TDetails> {
+  constructor(message = 'The request was aborted by the client' as TMessage, details?: TDetails) {
+    super(message, details);
+    this.name = 'RequestAbortedError';
+    this.message = message;
+  }
+}
+
 export {
   HttpError,
   ApplicationError,
@@ -166,4 +177,5 @@ export {
   PayloadTooLargeError,
   PolicyError,
   NotImplementedError,
+  RequestAbortedError,
 };

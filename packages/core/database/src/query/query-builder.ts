@@ -1,9 +1,11 @@
 import type { Knex } from 'knex';
 import _ from 'lodash/fp';
+import { errors } from '@strapi/utils';
 
 import type { Database } from '..';
 
 import { DatabaseError } from '../errors';
+import { requestCtx, raceWithAbort } from '../request-context';
 import { transactionCtx } from '../transaction-context';
 import { isKnexQuery } from '../utils/knex';
 import * as helpers from './helpers';
@@ -755,6 +757,12 @@ const createQueryBuilder = (
 
     async execute({ mapResults = true } = {}) {
       try {
+        const signal = requestCtx.get();
+
+        if (signal?.aborted) {
+          throw new errors.RequestAbortedError();
+        }
+
         const qb = this.getKnexQuery();
 
         const transaction = transactionCtx.get();
@@ -762,7 +770,10 @@ const createQueryBuilder = (
           qb.transacting(transaction);
         }
 
-        const rows = await qb;
+        // Materialize the thenable once so the abort race cannot trigger a
+        // second execution.
+        const query = Promise.resolve(qb);
+        const rows = signal ? await raceWithAbort(query, signal) : await query;
 
         if (state.populate && !_.isNil(rows)) {
           await helpers.applyPopulate(_.castArray(rows), state.populate, {
@@ -788,6 +799,10 @@ const createQueryBuilder = (
     },
 
     stream({ mapResults = true } = {}) {
+      if (requestCtx.get()?.aborted) {
+        throw new errors.RequestAbortedError();
+      }
+
       if (state.type === 'select') {
         return new helpers.ReadableQuery({ qb: this, db, uid, mapResults });
       }

@@ -157,6 +157,11 @@ const wrapResolvers = ({
        * @return {Promise<any>}
        */
       fieldDefinition.resolve = async (parent, args, context, info) => {
+        // The client already disconnected — skip resolving the rest of the tree.
+        if (get('state.abortSignal.aborted', context)) {
+          throw new errors.RequestAbortedError();
+        }
+
         await authorize({ context });
 
         // Execute middlewares (including the policy middleware which will always be included)
